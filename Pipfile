@@ -1,0 +1,14 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+numpy = "^1.26.1"
+emoji = "^2.8.0"
+pillow = "^10.1.0"
+
+[dev-packages]
+
+[requires]
+python_version = "3.9"
