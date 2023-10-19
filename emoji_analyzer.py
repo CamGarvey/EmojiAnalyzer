@@ -7,21 +7,25 @@ class EmojiAnalyzer:
     def __init__(self, emoji_font_path):
         self.emoji_font_path = emoji_font_path
 
-    def get_average_color(self, emoji: str, size=48, background: (int, int, int, int) = None):
+    def get_average_color(self, emoji: str, font_size=48, background: (int, int, int, int) = None):
         try:
+            container_size = font_size + 5
             # Create a new image with a transparent background or background
-            image = Image.new("RGBA", (size, size), (0, 0, 0, 0) if not background else background)
+            image = Image.new("RGBA", (container_size, container_size), (0, 0, 0, 0) if not background else background)
             draw = ImageDraw.Draw(image)
 
             # Use a large font size to draw the emoji in the center of the image
-            font = ImageFont.truetype(self.emoji_font_path, size, encoding='unic')
-            # font = ImageFont.truetype('/Users/camerongarvey/Downloads/AppleColorEmoji.ttf', size, encoding='unic')
-            text_length = draw.textlength(emoji, font)
-            x = (size - text_length) / 2
+            font = ImageFont.truetype(self.emoji_font_path, font_size, encoding='unic')
+            bbox = draw.textbbox((font_size, font_size), emoji, font=font)
+            text_height = bbox[3] - bbox[1]
+            text_width = bbox[2] - bbox[0]
+            x = (container_size - text_width) / 2
+            y = (container_size - text_height) / 2
 
             # Draw the emoji on the image
-            draw.text((x, x), emoji, embedded_color=True, font=font)
+            draw.text((x, y + 5), emoji, embedded_color=True, font=font)
 
+            # image.show()
             # Convert the image to a NumPy array for easier manipulation
             image_array = np.array(image)
 
