@@ -1,0 +1,4 @@
+emoji~=2.8.0
+Pillow~=10.1.0
+numpy~=1.26.1
+pilmoji~=2.0.4
