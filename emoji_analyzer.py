@@ -4,7 +4,9 @@ from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 from pilmoji import Pilmoji
 from pilmoji.source import BaseSource, AppleEmojiSource
-
+from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 
 class EmojiAnalyzer:
 
@@ -12,8 +14,8 @@ class EmojiAnalyzer:
         self.font_path = font_path
         self.source = source
 
-    def get_average_color(self, emoji: str, font_size=48, background: (int, int, int, int) = None, show=False):
-        with Image.new('RGBA', (font_size, font_size), (0, 0, 0, 255) if not background else background) as image:
+    def get_average_color(self, emoji: str, background: (int, int, int, int), font_size=48, show=False):
+        with Image.new(mode='RGBA', size=(font_size, font_size), color=background) as image:
             font = ImageFont.truetype(self.font_path, font_size)
 
             with Pilmoji(image, source=self.source) as pilmoji:
@@ -22,42 +24,75 @@ class EmojiAnalyzer:
             if show:
                 image.show()
 
-            return self.extract_color(image, background)
+            return self.extract_average_color(image)
 
-    def get_average_color_rgba(self, emoji: str, background: (int, int, int, int), padding=0, font_size=48, show=False):
-        try:
-            container_size = font_size + padding
-            # Create a new image with a transparent background or background
-            image = Image.new(mode="RGBA", size=(container_size, container_size), color=background)
-            draw = ImageDraw.Draw(image)
+    def get_dominant_colors(self, emoji: str, background: (int, int, int, int), font_size=48, show=False, colors=4):
+        with Image.new(mode='RGBA', size=(font_size, font_size), color=background) as image:
+            font = ImageFont.truetype(self.font_path, font_size)
 
-            # Use a large font size to draw the emoji in the center of the image
-            font = ImageFont.truetype(self.font_path, font_size, encoding='unic')
-            bbox = draw.textbbox((font_size, font_size), emoji, font=font)
-            text_height = bbox[3] - bbox[1]
-            text_width = bbox[2] - bbox[0]
-            x = (container_size - text_width) / 2
-            y = (container_size - text_height) / 2
-
-            # Draw the emoji on the image
-            draw.text((x, y), emoji, embedded_color=True, font=font)
+            with Pilmoji(image, source=self.source) as pilmoji:
+                pilmoji.text((0, 0), emoji, (0, 0, 0), font)
 
             if show:
                 image.show()
-            # Convert the image to a NumPy array for easier manipulation
-            image_array = np.array(image)
 
-            return self.extract_color(image_array, background)
+            return self.extract_dominant_colors2(image, colors, show)
+
+    def extract_dominant_colors2(self, image, colors, show=False):
+        # Convert the image to the CIELAB color space
+        image_lab = image.convert('LAB')
+
+        # Convert the CIELAB image to a NumPy array
+        image_array = np.array(image_lab)
+
+        # Reshape the array to a 2D array of pixels (rows) by LAB values (columns)
+        pixels = image_array.reshape((-1, 3))
+
+        # Use K-means clustering to find dominant colors
+        kmeans = KMeans(n_clusters=colors, random_state=0).fit(pixels)
+
+        # Get the cluster centers, which represent the dominant colors in LAB color space
+        dominant_colors_lab = kmeans.cluster_centers_
+
+        return dominant_colors_lab
+
+    def extract_dominant_colors(self, image: Image, colors, show=False):
+        # Set the desired number of colors for the image
+        img = image.quantize(colors=colors, kmeans=colors).convert('RGB')
+
+        dom_colors = sorted(img.getcolors(2 ** 24), reverse=True)[:colors]
+        values = [item[0] for item in dom_colors]
+        colors = [item[1] for item in dom_colors]
+        if show:
+            # Create a bar chart with the numeric values
+            plt.bar(range(len(values)), values, color=[(r / 255, g / 255, b / 255) for (r, g, b) in colors])
+            plt.xticks(range(len(values)), [str(item) for item in values])
+
+            plt.xlabel('Index')
+            plt.ylabel('Occurrences')
+            plt.title('Colour')
+            plt.show()
+
+        return colors
+
+    def extract_dominant_color2(self, image):
+        try:
+            reduced = image.convert("P", palette=Image.WEB)  # convert to web palette (216 colors)
+            palette = reduced.getpalette()  # get palette as [r,g,b,r,g,b,...]
+            palette = [palette[3 * n:3 * n + 3] for n in range(256)]  # group 3 by 3 = [[r,g,b],[r,g,b],...]
+            color_count = [(n, palette[m]) for n, m in reduced.getcolors()]
+            return color_count[0]
         except Exception as e:
-            print("Failed to find average color")
+            print("Failed to find dominant color")
             raise e
 
-    def extract_color(self, image: Image, background):
+    def extract_average_color(self, image: Image, background):
         try:
             image_array = np.array(image)
-            if background and background[3] != 0:
+            if background[3] != 0:
                 # Calculate the average color by taking the mean of all pixel values
-                average_color = np.mean(image_array, axis=(0, 1))
+                # average_color = np.mean(image_array, axis=(0, 1))
+                average_color = image_array.mean(axis=0).mean(axis=0)
                 average_color = tuple(map(int, average_color))
                 return average_color
 
@@ -77,6 +112,7 @@ class EmojiAnalyzer:
             # Convert the average color to RGBA format
             average_rgba = tuple(map(int, average_rgba))
 
+            print('extracted color:', average_rgba)
             return average_rgba
         except Exception as e:
             print("Failed to find average color")
