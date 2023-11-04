@@ -1,6 +1,6 @@
 from typing import Union, Type, Tuple
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageFont
 import numpy as np
 from pilmoji import Pilmoji
 from pilmoji.source import BaseSource, AppleEmojiSource

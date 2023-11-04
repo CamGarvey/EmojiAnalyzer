@@ -1,12 +1,13 @@
-import emoji
 import json
 
-from pilmoji.source import Twemoji
+import requests
 
-from emoji_analyzer import EmojiAnalyzer
-from sources.file_base_source import FileBaseSource
-from sources.text_base_source import TextBaseSource
-import matplotlib.pyplot as plt
+from src.emoji_analyzer import EmojiAnalyzer
+from src.emoji_helper import render, codepoints, rgi
+from src.sources.file_base_source import FileBaseSource
+from src.sources.noto_color_emoji_source import NotoColorEmojiSource
+from src.sources.text_base_source import TextBaseSource
+
 
 def map_number(input: int, input_min: int, input_max: int, output_min: int, output_max: int):
     return output_min + ((output_max - output_min) / (input_max - input_min)) * (input - input_min);
@@ -54,43 +55,44 @@ def noto_path_builder(emoji: str):
     return f"{path}{prefix}{'_'.join(codes)}{extension}".lower()
 
 
+def noto_path_builder2(emoji: str):
+    return f"assets/128/emoji_u{rgi(codepoints(emoji))}.png"
+
+
+def get_noto_from_ttf(background):
+    result = []
+    font_size = 109
+    font_path = '/Users/camerongarvey/Documents/Repos/pixeled/public/NotoColorEmoji.ttf'
+
+    emoji_analyzer = EmojiAnalyzer(font_path, font_size, source=TextBaseSource(font_path, font_size=font_size, padding=15))
+    emoji_ordering = requests.get(
+        'https://cdn.jsdelivr.net/gh/googlefonts/emoji-metadata@main/emoji_15_0_ordering.json').json()
+
+    for group in emoji_ordering:
+        print(group['group'])
+        for emoji in group['emoji']:
+            unicode = render(emoji['base'])
+            red, green, blue, _ = emoji_analyzer.get_average_color(unicode, background=background)
+
+            print(f"{unicode} - {' '.join(emoji['shortcodes'])} - [{red}, {green}, {blue}]")
+
+            result.append({
+                'emoji': unicode,
+                'rgb': [red, green, blue]
+            })
+
+    return result
+
+
 apple_font = [20, 26, 32, 40, 48, 52, 64, 96, 160]
 
 if __name__ == '__main__':
-    result = []
-
-    font_size = 109  # noto
-    # font_size = 64  # apple
-
-    # font_path = '/System/Library/Fonts/Apple Color Emoji.ttc'
-    font_path = '/Users/camerongarvey/Downloads/NotoColorEmoji.ttf'
-
-    emoji_analyzer = EmojiAnalyzer(font_path, font_size, source=TextBaseSource(font_path, font_size=font_size))
-
-
-    # color = emoji_analyzer.get_average_color('🙆🏻‍♂', background=(0, 0, 0, 255), show=True)
-
-    for e in emoji.EMOJI_DATA:
-        print('')
-        print(e)
-        red, green, blue, _ = emoji_analyzer.get_average_color(e, background=(0, 0, 0, 255))
-
-        if red == 0 & green == 0 & blue == 0:
-            print('shitty')
-            continue
-
-        result.append({
-            'emoji': e,
-            'rgb': [red, green, blue]
-        })
+    result = get_noto_from_ttf((0, 0, 0, 255))
 
     with open('emojis.json', "w", encoding="utf-8") as json_file:
-        json.dump(result, json_file, ensure_ascii=False, indent=4)
+        json.dump(result, json_file, ensure_ascii=True, indent=4)
 
     print("DONE!")
-
-
-
 
 
 def find_font_sizes(emoji_analyzer, show=False):
