@@ -1,4 +1,4 @@
-from typing import Union, Type
+from typing import Union, Type, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
@@ -6,17 +6,38 @@ from pilmoji import Pilmoji
 from pilmoji.source import BaseSource, AppleEmojiSource
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
+
 
 class EmojiAnalyzer:
 
-    def __init__(self, font_path, source: Union[BaseSource, Type[BaseSource]] = AppleEmojiSource):
+    def __init__(self, font_path, font_size, source: Union[BaseSource, Type[BaseSource]] = AppleEmojiSource):
         self.font_path = font_path
+        self.font_size = font_size
         self.source = source
 
-    def get_average_color(self, emoji: str, background: (int, int, int, int), font_size=48, show=False):
-        with Image.new(mode='RGBA', size=(font_size, font_size), color=background) as image:
-            font = ImageFont.truetype(self.font_path, font_size)
+    def get_average_color(self, emoji: str, background: (int, int, int, int), show=False) -> Tuple[int, int, int, int]:
+        with Image.new(mode='RGBA', size=(self.font_size, self.font_size), color=background) as image:
+            font = ImageFont.truetype(self.font_path, self.font_size)
+
+            with Pilmoji(image, source=self.source) as pilmoji:
+                pilmoji.text((0, 0), emoji, (0, 0, 0), font)
+
+            rgb_color = self.extract_average_color(image, background)
+            if show:
+                fig, ax = plt.subplots()
+                # Create a single pixel with the specified color
+                ax.imshow([[rgb_color]])
+                # Remove axis labels and ticks for a cleaner look
+                ax.set_xticks([])
+                ax.set_yticks([])
+                image.show()
+                plt.show()
+
+            return rgb_color
+
+    def get_dominant_colors(self, emoji: str, background: (int, int, int, int), n_colors=4, show=False):
+        with Image.new(mode='RGBA', size=(self.font_size, self.font_size), color=background) as image:
+            font = ImageFont.truetype(self.font_path, self.font_size)
 
             with Pilmoji(image, source=self.source) as pilmoji:
                 pilmoji.text((0, 0), emoji, (0, 0, 0), font)
@@ -24,19 +45,7 @@ class EmojiAnalyzer:
             if show:
                 image.show()
 
-            return self.extract_average_color(image)
-
-    def get_dominant_colors(self, emoji: str, background: (int, int, int, int), font_size=48, show=False, colors=4):
-        with Image.new(mode='RGBA', size=(font_size, font_size), color=background) as image:
-            font = ImageFont.truetype(self.font_path, font_size)
-
-            with Pilmoji(image, source=self.source) as pilmoji:
-                pilmoji.text((0, 0), emoji, (0, 0, 0), font)
-
-            if show:
-                image.show()
-
-            return self.extract_dominant_colors2(image, colors, show)
+            return self.extract_dominant_colors(image, n_colors, show)
 
     def extract_dominant_colors2(self, image, colors, show=False):
         # Convert the image to the CIELAB color space
@@ -86,10 +95,10 @@ class EmojiAnalyzer:
             print("Failed to find dominant color")
             raise e
 
-    def extract_average_color(self, image: Image, background):
+    def extract_average_color(self, image: Image, background) -> Tuple[int, int, int, int]:
         try:
             image_array = np.array(image)
-            if background[3] != 0:
+            if len(background) == 3 or background[3] != 0:
                 # Calculate the average color by taking the mean of all pixel values
                 # average_color = np.mean(image_array, axis=(0, 1))
                 average_color = image_array.mean(axis=0).mean(axis=0)
