@@ -2,7 +2,7 @@ from io import BytesIO
 from typing import Optional
 from urllib.error import HTTPError
 
-from src.emoji_helper import rgi, codepoints
+from src.helpers.emoji_helper import rgi, codepoints
 
 try:
     import requests

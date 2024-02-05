@@ -7,6 +7,8 @@ from pilmoji.source import BaseSource, AppleEmojiSource
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 
+from src.helpers.math import map_number
+
 
 class EmojiAnalyzer:
 
@@ -22,18 +24,18 @@ class EmojiAnalyzer:
             with Pilmoji(image, source=self.source) as pilmoji:
                 pilmoji.text((0, 0), emoji, (0, 0, 0), font)
 
-            rgb_color = self.extract_average_color(image, background)
+            rgba_color = self.extract_average_color(image, background)
             if show:
                 fig, ax = plt.subplots()
                 # Create a single pixel with the specified color
-                ax.imshow([[rgb_color]])
+                ax.imshow([[rgba_color]])
                 # Remove axis labels and ticks for a cleaner look
                 ax.set_xticks([])
                 ax.set_yticks([])
                 image.show()
                 plt.show()
 
-            return rgb_color
+            return rgba_color
 
     def get_dominant_colors(self, emoji: str, background: (int, int, int, int), n_colors=4, show=False):
         with Image.new(mode='RGBA', size=(self.font_size, self.font_size), color=background) as image:
@@ -102,8 +104,7 @@ class EmojiAnalyzer:
                 # Calculate the average color by taking the mean of all pixel values
                 # average_color = np.mean(image_array, axis=(0, 1))
                 average_color = image_array.mean(axis=0).mean(axis=0)
-                average_color = tuple(map(int, average_color))
-                return average_color
+                return tuple(map(int, average_color))
 
             rgb_pixels = image_array[:, :, :-1][image_array[:, :, 3] > 0]
 
@@ -121,8 +122,26 @@ class EmojiAnalyzer:
             # Convert the average color to RGBA format
             average_rgba = tuple(map(int, average_rgba))
 
-            print('extracted color:', average_rgba)
             return average_rgba
         except Exception as e:
             print("Failed to find average color")
             raise e
+
+    def download_png(self, emoji: str, background, path, show=False, output_size=None):
+
+        with Image.new(mode='RGBA', size=(self.font_size, self.font_size), color=background) as image:
+            font = ImageFont.truetype(self.font_path, self.font_size)
+
+            with Pilmoji(image, source=self.source) as pilmoji:
+                pilmoji.text((0, 0), emoji, (0, 0, 0), font)
+
+            if show:
+                image.show()
+
+            if output_size:
+                image = image.resize(output_size, Image.LANCZOS)
+
+            if show:
+                image.show()
+
+            image.save(path)
