@@ -43,49 +43,67 @@ def get_google_emoji_ordering(exclude_groups=None, include_alternate=True):
                     yield render(alternate)
 
 
-def get_apple_emoji_ordering(exclude_groups=None, include_alternate=True):
-    emoji_ordering = requests.get('https://cdn.jsdelivr.net/npm/emoji-datasource-apple@15.1.2/emoji.json').json()
-
-    groups = []
-    uniquekeys = []
-    emoji_ordering = sorted(emoji_ordering, key=lambda x: x['category'])
-    for k, g in groupby(emoji_ordering, lambda x: x['category']):
-        groups.append(list(g))  # Store group iterator as a list
-        uniquekeys.append(k)
-    # groups = emoji_ordering if not exclude_groups else filter(lambda x: x not in exclude_groups, emoji_ordering)
-    for index, group in enumerate(groups):
-        print(uniquekeys[index])
-        for emoji in group:
-            unicode = render(emoji['google'])
-            yield unicode
-            if include_alternate:
-                for alternate in emoji['alternates']:
-                    yield render(alternate)
-
-
-def get_average_color_of_emojis_generator(get_ordering_func, emoji_analyzer: EmojiAnalyzer, exclude_groups=None,
-                                          background=None):
+def get_average_color_of_emojis_generator(emoji_analyzer: EmojiAnalyzer, exclude_groups=None, background=None):
     """
     Uses google ordering so some emojis might be missing for apple
     """
-    for unicode in get_ordering_func(exclude_groups):
-        try:
-            red, green, blue, alpha = emoji_analyzer.get_average_color(unicode, background=background)
 
-            if (red <= background[0] and green <= background[1] and blue <= background[2]) or alpha == 0:
-                print(f"{unicode} - Skipping; could not see it")
-                continue
+    emoji_ordering = requests.get(
+        'https://cdn.jsdelivr.net/gh/googlefonts/emoji-metadata@main/emoji_15_1_ordering.json').json()
 
-            alpha = round(map_number(alpha, 0, 255, 0, 1), 2)
+    groups = emoji_ordering if not exclude_groups else filter(lambda x: x['group'] not in exclude_groups, emoji_ordering)
 
-            print(unicode, [red, green, blue, alpha])
-            yield {
-                'emoji': unicode,
-                'rgb': [red, green, blue, alpha]
+    result = {
+
+    }
+
+    for group in groups:
+        emojis = []
+
+        for emoji in group['emoji']:
+            data = {
+                "unicodes": [],
+                "shortcodes": emoji["shortcodes"],
             }
-        except Exception as e:
-            print(e)
-            print(f"{unicode} - Failed")
+            data["unicodes"].append(render(emoji['base']))
+            for alternate in emoji['alternates']:
+                data["unicodes"].append(render(alternate))
+            emojis.append(data)
+        result[group['group']] = emojis
+
+    groups = {}
+
+    for group_name, emojis in result.items():
+        group = []
+        unicodes = []
+        for emoji in emojis:
+            for unicode in emoji["unicodes"]:
+                if unicode in unicodes:
+                    continue
+                try:
+                    red, green, blue, alpha = emoji_analyzer.get_average_color(unicode, background=background)
+
+                    if (red <= background[0] and green <= background[1] and blue <= background[2]) or alpha == 0:
+                        print(f"{unicode} - Skipping; could not see it")
+                        continue
+
+                    alpha = round(map_number(alpha, 0, 255, 0, 1), 2)
+
+                    descriptions = [s.replace(':', '').replace('-', ' ') for s in emoji['shortcodes']]
+
+                    unicodes.append(unicode)
+                    print(unicode, [red, green, blue, alpha])
+                    group.append({
+                        'unicode': unicode,
+                        'rgb': [red, green, blue, alpha],
+                        'description': ' '.join(descriptions).lower()
+                    })
+                except Exception as e:
+                    print(e)
+                    print(f"{unicode} - Failed")
+        groups[group_name] = group
+
+    return groups
 
 
 def get_average_color_of_emojis_generator2(emoji_analyzer: EmojiAnalyzer, background=None):
@@ -230,7 +248,8 @@ if __name__ == '__main__':
     analyzer = create_apple_emoji_analyzer(160)
     # analyzer.get_average_color('', (0,0,0,0), show=True)
 
-    results = list(get_average_color_of_emojis_generator(get_google_emoji_ordering, analyzer, background=(0, 0, 0, 0)))
+    results = get_average_color_of_emojis_generator(analyzer, background=(0, 0, 0, 0))
+
     with open('emojis.json', "w", encoding="utf-8") as json_file:
         json.dump(results, json_file, ensure_ascii=False, indent=4)
 
