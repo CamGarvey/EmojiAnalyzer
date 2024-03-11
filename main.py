@@ -53,9 +53,7 @@ def get_average_color_of_emojis_generator(emoji_analyzer: EmojiAnalyzer, exclude
 
     groups = emoji_ordering if not exclude_groups else filter(lambda x: x['group'] not in exclude_groups, emoji_ordering)
 
-    result = {
-
-    }
+    result = {}
 
     for group in groups:
         emojis = []
@@ -244,12 +242,62 @@ def find_font_sizes(font_path, show=False):
     return sizes
 
 
+def get_average_color_of_emojis_generator_(emoji_analyzer: EmojiAnalyzer, exclude_groups=None, background=None):
+    """
+    Uses google ordering so some emojis might be missing for apple
+    """
+
+    # emoji_ordering = requests.get(
+    #     'https://cdn.jsdelivr.net/gh/googlefonts/emoji-metadata@main/emoji_15_1_ordering.json').json()
+    #
+    # groups = emoji_ordering if not exclude_groups else filter(lambda x: x['group'] not in exclude_groups, emoji_ordering)
+
+    f = open('data.json')
+
+    # returns JSON object as
+    # a dictionary
+    data = json.load(f)
+
+    result = {
+        'categories': {},
+        'emojis': {}
+    }
+
+    for group in data['categories']:
+
+        for emoji in group['emojis']:
+            e = data['emojis'][emoji]
+            del e['id']
+            del e['version']
+            for skin in data['emojis'][emoji]['skins']:
+                unicode = skin['native']
+                del skin['x']
+                del skin['y']
+                try:
+                    red, green, blue, alpha = emoji_analyzer.get_average_color(unicode, background=background)
+
+                    if (red <= background[0] and green <= background[1] and blue <= background[2]) or alpha == 0:
+                        print(f"{unicode} - Skipping; could not see it")
+                        continue
+
+                    alpha = round(map_number(alpha, 0, 255, 0, 1), 2)
+
+                    skin['color'] = [red, green, blue, alpha]
+                except Exception as e:
+                    print(e)
+                    print(f"{unicode} - Failed")
+
+    data['categories'] = {k['id']: k['emojis'] for k in data['categories']}
+    return data
+
+
 if __name__ == '__main__':
     analyzer = create_apple_emoji_analyzer(160)
     # analyzer.get_average_color('', (0,0,0,0), show=True)
 
-    results = get_average_color_of_emojis_generator(analyzer, background=(0, 0, 0, 0))
-
+    v = analyzer.get_average_color('🇦🇺', (0,0,0,0), show=True)
+    # Opening JSON file
+    results = get_average_color_of_emojis_generator_(analyzer, background=(0,0,0,0))
     with open('emojis.json', "w", encoding="utf-8") as json_file:
         json.dump(results, json_file, ensure_ascii=False, indent=4)
 
