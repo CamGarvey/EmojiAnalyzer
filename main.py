@@ -259,12 +259,10 @@ def get_average_color_of_emojis_generator_(emoji_analyzer: EmojiAnalyzer, exclud
     data = json.load(f)
 
     result = {
-        'categories': {},
-        'emojis': {}
     }
 
     for group in data['categories']:
-
+        emojis = []
         for emoji in group['emojis']:
             e = data['emojis'][emoji]
             del e['id']
@@ -287,15 +285,18 @@ def get_average_color_of_emojis_generator_(emoji_analyzer: EmojiAnalyzer, exclud
                     print(e)
                     print(f"{unicode} - Failed")
 
-    data['categories'] = {k['id']: k['emojis'] for k in data['categories']}
-    return data
+            e['name'] = e['name'].lower()
+            emojis.append(e)
+        result[group['id']] = emojis
+
+    return result
 
 
 if __name__ == '__main__':
     analyzer = create_apple_emoji_analyzer(160)
     # analyzer.get_average_color('', (0,0,0,0), show=True)
 
-    v = analyzer.get_average_color('🇦🇺', (0,0,0,0), show=True)
+    # v = analyzer.get_average_color('🇦🇺', (0, 0, 0, 0), show=True)
     # Opening JSON file
     results = get_average_color_of_emojis_generator_(analyzer, background=(0,0,0,0))
     with open('emojis.json', "w", encoding="utf-8") as json_file:
